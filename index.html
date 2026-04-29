@@ -325,10 +325,8 @@
         }
 
         .game-panel {
-            min-height: calc(100vh - 36px);
             display: flex;
             flex-direction: column;
-            justify-content: space-between;
             gap: 14px;
         }
 
@@ -365,18 +363,18 @@
             border-radius: 28px;
             background: #fff;
             box-shadow: 0 18px 35px rgba(36, 48, 79, 0.2);
-            flex: 1;
-            min-height: 260px;
-            max-height: 60vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            max-height: 62vh;
         }
 
         .game-photo {
             width: 100%;
-            height: 100%;
-            min-height: 260px;
-            max-height: 60vh;
+            height: auto;
+            max-height: calc(62vh - 20px);
             display: block;
-            object-fit: cover;
+            object-fit: contain;
         }
 
         .finish {
@@ -425,16 +423,25 @@
         }
 
 
-        .prep-photo {
+        .prep-photo-frame {
             width: 100%;
             max-height: 54vh;
-            min-height: 260px;
-            object-fit: cover;
-            display: block;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             border-radius: 26px;
             border: 10px solid #fff;
             box-shadow: 0 18px 35px rgba(36, 48, 79, 0.2);
             background: #fff;
+            overflow: hidden;
+        }
+
+        .prep-photo {
+            width: 100%;
+            height: auto;
+            max-height: calc(54vh - 20px);
+            object-fit: contain;
+            display: block;
         }
 
         .remaining-grid {
@@ -492,6 +499,76 @@
             text-align: center;
         }
 
+        .deck-section {
+            margin-top: 18px;
+            padding: 16px;
+            border-radius: 22px;
+            background: rgba(108, 92, 231, 0.08);
+        }
+
+        .deck-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .deck-title {
+            font-weight: 1000;
+            font-size: 18px;
+        }
+
+        .deck-hint {
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1.35;
+            margin: 0 0 10px;
+        }
+
+        .deck-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+        }
+
+        .card-num {
+            aspect-ratio: 1 / 1;
+            border-radius: 14px;
+            background: #fff;
+            color: var(--text);
+            font-weight: 1000;
+            font-size: 18px;
+            display: grid;
+            place-items: center;
+            box-shadow: 0 4px 0 #d9e2f2;
+            position: relative;
+        }
+
+        .card-num.lost {
+            background: #ffd6da;
+            color: #b8253a;
+            text-decoration: line-through;
+            box-shadow: 0 4px 0 #f0a4a8;
+        }
+
+        .card-num:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #d9e2f2;
+        }
+
+        .card-num.lost:active {
+            box-shadow: 0 2px 0 #f0a4a8;
+        }
+
+        .deck-actions {
+            margin-top: 12px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
         @media (max-width: 420px) {
             body {
                 padding-left: 10px;
@@ -520,10 +597,6 @@
 
             .row-actions {
                 grid-template-columns: 1fr;
-            }
-
-            .game-panel {
-                min-height: calc(100vh - 28px);
             }
         }
     </style>
@@ -554,6 +627,8 @@
     (function () {
         var STORAGE_PHOTOS = "kidsQuestPhotos_v2";
         var STORAGE_STEP = "kidsQuestCurrentStepIndex_v2";
+        var STORAGE_LOST = "kidsQuestLost_v1";
+        var DECK_SIZE = 20;
 
         var app = document.getElementById("app");
         var cameraInput = document.getElementById("cameraInput");
@@ -564,6 +639,7 @@
         var storageWorks = testStorage();
         var photos = loadPhotos();
         var currentStepIndex = loadStep();
+        var lostCards = loadLost();
         var prepIndex = 0;
         var pendingReplaceIndex = null;
         var messageTimer = null;
@@ -635,6 +711,43 @@
             storageSet(STORAGE_STEP, String(currentStepIndex), true);
         }
 
+        function loadLost() {
+            try {
+                var raw = storageGet(STORAGE_LOST);
+                var parsed = raw ? JSON.parse(raw) : [];
+                if (!Array.isArray(parsed)) return [];
+                var result = [];
+                for (var i = 0; i < parsed.length; i++) {
+                    var n = Number(parsed[i]);
+                    if (isFinite(n) && n >= 1 && n <= DECK_SIZE && result.indexOf(n) === -1) {
+                        result.push(n);
+                    }
+                }
+                result.sort(function (a, b) { return a - b; });
+                return result;
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function saveLost() {
+            storageSet(STORAGE_LOST, JSON.stringify(lostCards), true);
+        }
+
+        function availableNumbers() {
+            var nums = [];
+            for (var n = 1; n <= DECK_SIZE; n++) {
+                if (lostCards.indexOf(n) === -1) nums.push(n);
+            }
+            return nums;
+        }
+
+        function cardNumberFor(index) {
+            var nums = availableNumbers();
+            if (index >= 0 && index < nums.length) return nums[index];
+            return index + 1;
+        }
+
         function savePhotos(nextPhotos) {
             storageSet(STORAGE_PHOTOS, JSON.stringify(nextPhotos), false);
             photos = nextPhotos;
@@ -695,16 +808,20 @@
         };
 
         window.renderSettings = function () {
-            var nextNumber = photos.length + 1;
+            var nums = availableNumbers();
+            var nextNumber = nums[photos.length] || (photos.length + 1);
+            var canAddMore = photos.length < nums.length;
             var routeHtml = "";
 
             if (photos.length) {
                 for (var i = 0; i < photos.length; i++) {
+                    var displayNum = cardNumberFor(i);
+                    var extra = i >= nums.length;
                     routeHtml +=
                         '<div class="photo-row">' +
-                        '<img class="thumb" src="' + photos[i].imageDataUrl + '" alt="Card photo ' + (i + 1) + '">' +
+                        '<img class="thumb" src="' + photos[i].imageDataUrl + '" alt="Card photo ' + displayNum + '">' +
                         '<div>' +
-                        '<div class="row-title">Card #' + (i + 1) + '</div>' +
+                        '<div class="row-title">' + (extra ? 'Extra photo' : 'Card #' + displayNum) + '</div>' +
                         '<div class="row-actions">' +
                         '<button class="btn small orange" onclick="replacePhoto(' + i + ')">Replace</button>' +
                         '<button class="btn small red" onclick="deletePhoto(' + i + ')">Delete</button>' +
@@ -713,30 +830,107 @@
                         '</div>';
                 }
             } else {
-                routeHtml = '<div class="empty">No photos yet. Add the first place for card #1.</div>';
+                routeHtml = '<div class="empty">No photos yet. Add the first place for card #' + nextNumber + '.</div>';
             }
+
+            var deckGrid = "";
+            for (var n = 1; n <= DECK_SIZE; n++) {
+                var isLost = lostCards.indexOf(n) !== -1;
+                deckGrid +=
+                    '<button class="card-num' + (isLost ? ' lost' : '') + '" ' +
+                    'onclick="toggleCardLost(' + n + ')" ' +
+                    'aria-label="Card ' + n + (isLost ? ' (lost)' : '') + '" ' +
+                    'aria-pressed="' + (isLost ? 'true' : 'false') + '">' + n + '</button>';
+            }
+
+            var lostCount = lostCards.length;
+            var deckActions = lostCount
+                ? '<div class="deck-actions">' +
+                  '<button class="btn small secondary" onclick="resetLostCards()">All present</button>' +
+                  '</div>'
+                : '';
+
+            var deckSection =
+                '<div class="deck-section">' +
+                '<div class="deck-head">' +
+                '<div class="deck-title">Deck (' + DECK_SIZE + ' cards)</div>' +
+                '<div class="counter">Lost: ' + lostCount + '</div>' +
+                '</div>' +
+                '<p class="deck-hint">Tap a number to mark the card as lost so it is skipped in the game.</p>' +
+                '<div class="deck-grid">' + deckGrid + '</div>' +
+                deckActions +
+                '</div>';
+
+            var addBlock = canAddMore
+                ? '<div class="add-card">' +
+                  '<div class="next-num">' + nextNumber + '</div>' +
+                  '<button class="btn" onclick="takePhoto()">Take photo for #' + nextNumber + '</button>' +
+                  '<button class="btn secondary" style="margin-top:12px;" onclick="choosePhoto()">Choose from gallery</button>' +
+                  '<p class="tiny">You can choose several photos from the gallery at once.</p>' +
+                  '</div>'
+                : '<div class="prep-note">All ' + nums.length + ' available cards have photos. Mark a card as lost or delete a photo to add more.</div>';
+
+            var extraWarning = photos.length > nums.length
+                ? '<div class="fallback-warning">You have ' + (photos.length - nums.length) + ' extra photo(s) beyond the available cards. Delete extras or restore lost cards.</div>'
+                : '';
 
             setScreen(
                 '<div class="panel">' +
                 '<div class="topbar">' +
                 '<button class="icon-btn" onclick="renderHome()" aria-label="Back">←</button>' +
-                '<div class="counter">Photos: ' + photos.length + '</div>' +
+                '<div class="counter">Photos: ' + photos.length + ' / ' + nums.length + '</div>' +
                 '</div>' +
                 '<h2>Quest setup</h2>' +
                 '<p class="sub">Add photos in order. You can take a photo or choose one from the gallery.</p>' +
-                '<div class="add-card">' +
-                '<div class="next-num">' + nextNumber + '</div>' +
-                '<button class="btn" onclick="takePhoto()">Take photo #' + nextNumber + '</button>' +
-                '<button class="btn secondary" style="margin-top:12px;" onclick="choosePhoto()">Choose from gallery</button><p class="tiny">You can choose several photos from the gallery at once.</p>' +
-                '</div>' +
+                addBlock +
+                extraWarning +
                 '<div class="actions">' +
                 '<button class="btn green" ' + (photos.length ? "" : "disabled") + ' onclick="startPreparation()">Prepare game</button>' +
                 '</div>' +
+                deckSection +
                 '<h2 style="margin-top:24px;font-size:28px;">Route</h2>' +
                 '<div class="route">' + routeHtml + '</div>' +
                 (photos.length ? '<div class="actions"><button class="btn red" onclick="clearQuest()">Clear all photos</button></div>' : '') +
                 '</div>'
             );
+        };
+
+        window.toggleCardLost = function (n) {
+            n = Number(n);
+            if (!isFinite(n) || n < 1 || n > DECK_SIZE) return;
+
+            var idx = lostCards.indexOf(n);
+            if (idx === -1) {
+                lostCards.push(n);
+                lostCards.sort(function (a, b) { return a - b; });
+            } else {
+                lostCards.splice(idx, 1);
+            }
+
+            try {
+                saveLost();
+            } catch (e) {
+                showMessage("Could not save deck changes.");
+                return;
+            }
+
+            resetProgress();
+            window.renderSettings();
+        };
+
+        window.resetLostCards = function () {
+            if (!lostCards.length) return;
+            lostCards = [];
+
+            try {
+                saveLost();
+            } catch (e) {
+                showMessage("Could not save deck changes.");
+                return;
+            }
+
+            resetProgress();
+            window.renderSettings();
         };
 
         window.takePhoto = function () {
@@ -873,7 +1067,7 @@
         }
 
         window.deletePhoto = function (index) {
-            var ok = confirm("Delete the photo for card #" + (index + 1) + "?");
+            var ok = confirm("Delete the photo for card #" + cardNumberFor(index) + "?");
             if (!ok) return;
 
             var nextPhotos = [];
@@ -900,6 +1094,7 @@
             try {
                 storageRemove(STORAGE_PHOTOS, false);
                 storageRemove(STORAGE_STEP, true);
+                storageRemove(STORAGE_LOST, true);
             } catch (e) {
                 showMessage("The quest was not cleared. Try again.");
                 return;
@@ -907,6 +1102,7 @@
 
             photos = [];
             currentStepIndex = 0;
+            lostCards = [];
             window.renderHome();
             showMessage("Quest cleared.");
         };
@@ -933,37 +1129,68 @@
                 return;
             }
 
-            var cardNumber = prepIndex + 1;
+            var cardNumber = cardNumberFor(prepIndex);
             var currentPhoto = photos[prepIndex];
             var choices = "";
 
             for (var i = prepIndex; i < photos.length; i++) {
+                var slotNum = cardNumberFor(i);
                 choices +=
-                    '<button class="place-choice ' + (i === prepIndex ? "active" : "") + '" onclick="pickPrepPhoto(' + i + ')" aria-label="Choose place ' + (i + 1) + '">' +
-                    '<img src="' + photos[i].imageDataUrl + '" alt="Remaining place ' + (i + 1) + '">' +
-                    '<span class="place-badge">' + (i === prepIndex ? "✓" : (i + 1)) + '</span>' +
+                    '<button class="place-choice ' + (i === prepIndex ? "active" : "") + '" onclick="pickPrepPhoto(' + i + ')" aria-label="Choose place for card ' + slotNum + '">' +
+                    '<img src="' + photos[i].imageDataUrl + '" alt="Remaining place ' + slotNum + '">' +
+                    '<span class="place-badge">' + (i === prepIndex ? "✓" : ("#" + slotNum)) + '</span>' +
                     '</button>';
             }
+
+            var canShuffle = photos.length - prepIndex > 1;
+            var shuffleBtn = canShuffle
+                ? '<button class="btn secondary" onclick="shufflePrep()">🔀 Shuffle remaining</button>'
+                : '';
 
             setScreen(
                 '<div class="panel">' +
                 '<div class="topbar">' +
                 '<button class="icon-btn" onclick="renderHome()" aria-label="Home">⌂</button>' +
-                '<div class="counter">Layout ' + cardNumber + ' of ' + photos.length + '</div>' +
+                '<div class="counter">Layout ' + (prepIndex + 1) + ' of ' + photos.length + '</div>' +
                 '</div>' +
 
                 '<h2>Card #' + cardNumber + '</h2>' +
 
+                '<div class="prep-photo-frame">' +
                 '<img class="prep-photo" src="' + currentPhoto.imageDataUrl + '" alt="Place for card ' + cardNumber + '">' +
+                '</div>' +
 
                 '<div class="remaining-grid">' + choices + '</div>' +
 
                 '<div class="actions">' +
                 '<button class="btn green" onclick="confirmPrepStep()">Hidden! Next</button>' +
+                shuffleBtn +
                 '<button class="btn secondary" onclick="renderSettings()">Set up photos</button>' +
                 '</div>' +
                 '</div>'
             );
+        };
+
+        window.shufflePrep = function () {
+            if (photos.length - prepIndex <= 1) return;
+
+            var nextPhotos = photos.slice();
+            for (var i = nextPhotos.length - 1; i > prepIndex; i--) {
+                var j = prepIndex + Math.floor(Math.random() * (i - prepIndex + 1));
+                var tmp = nextPhotos[i];
+                nextPhotos[i] = nextPhotos[j];
+                nextPhotos[j] = tmp;
+            }
+
+            try {
+                savePhotos(nextPhotos);
+            } catch (e) {
+                showMessage("Could not shuffle photos.");
+                return;
+            }
+
+            window.renderPreparation();
+            showMessage("Shuffled!");
         };
 
         window.pickPrepPhoto = function (absoluteIndex) {
@@ -1037,14 +1264,14 @@
             }
 
             var photo = photos[currentStepIndex];
-            var cardNumber = currentStepIndex + 1;
+            var cardNumber = cardNumberFor(currentStepIndex);
 
             setScreen(
                 '<div class="panel game-panel">' +
                 '<div class="game-head">' +
                 '<div class="topbar">' +
                 '<button class="icon-btn" onclick="renderHome()" aria-label="Home">⌂</button>' +
-                '<div class="counter">Card ' + cardNumber + ' of ' + photos.length + '</div>' +
+                '<div class="counter">Card ' + (currentStepIndex + 1) + ' of ' + photos.length + '</div>' +
                 '</div>' +
                 '<div class="game-title">Find the card</div>' +
                 '<div class="game-number">#' + cardNumber + '</div>' +
