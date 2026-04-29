@@ -723,7 +723,9 @@
                         result.push(n);
                     }
                 }
-                result.sort(function (a, b) { return a - b; });
+                result.sort(function (a, b) {
+                    return a - b;
+                });
                 return result;
             } catch (e) {
                 return [];
@@ -767,10 +769,16 @@
             }, 2600);
         }
 
-        function setScreen(html) {
+        function setScreen(html, opts) {
+            var preserveScroll = opts && opts.preserveScroll;
+            var prev = 0;
+            try {
+                prev = window.scrollY || window.pageYOffset || 0;
+            } catch (e) {
+            }
             app.innerHTML = html;
             try {
-                window.scrollTo(0, 0);
+                window.scrollTo(0, preserveScroll ? prev : 0);
             } catch (e) {
             }
         }
@@ -807,7 +815,7 @@
             );
         };
 
-        window.renderSettings = function () {
+        window.renderSettings = function (preserveScroll) {
             var nums = availableNumbers();
             var nextNumber = nums[photos.length] || (photos.length + 1);
             var canAddMore = photos.length < nums.length;
@@ -846,8 +854,8 @@
             var lostCount = lostCards.length;
             var deckActions = lostCount
                 ? '<div class="deck-actions">' +
-                  '<button class="btn small secondary" onclick="resetLostCards()">All present</button>' +
-                  '</div>'
+                '<button class="btn small secondary" onclick="resetLostCards()">All present</button>' +
+                '</div>'
                 : '';
 
             var deckSection =
@@ -863,11 +871,11 @@
 
             var addBlock = canAddMore
                 ? '<div class="add-card">' +
-                  '<div class="next-num">' + nextNumber + '</div>' +
-                  '<button class="btn" onclick="takePhoto()">Take photo for #' + nextNumber + '</button>' +
-                  '<button class="btn secondary" style="margin-top:12px;" onclick="choosePhoto()">Choose from gallery</button>' +
-                  '<p class="tiny">You can choose several photos from the gallery at once.</p>' +
-                  '</div>'
+                '<div class="next-num">' + nextNumber + '</div>' +
+                '<button class="btn" onclick="takePhoto()">Take photo for #' + nextNumber + '</button>' +
+                '<button class="btn secondary" style="margin-top:12px;" onclick="choosePhoto()">Choose from gallery</button>' +
+                '<p class="tiny">You can choose several photos from the gallery at once.</p>' +
+                '</div>'
                 : '<div class="prep-note">All ' + nums.length + ' available cards have photos. Mark a card as lost or delete a photo to add more.</div>';
 
             var extraWarning = photos.length > nums.length
@@ -891,7 +899,8 @@
                 '<h2 style="margin-top:24px;font-size:28px;">Route</h2>' +
                 '<div class="route">' + routeHtml + '</div>' +
                 (photos.length ? '<div class="actions"><button class="btn red" onclick="clearQuest()">Clear all photos</button></div>' : '') +
-                '</div>'
+                '</div>',
+                {preserveScroll: !!preserveScroll}
             );
         };
 
@@ -902,7 +911,9 @@
             var idx = lostCards.indexOf(n);
             if (idx === -1) {
                 lostCards.push(n);
-                lostCards.sort(function (a, b) { return a - b; });
+                lostCards.sort(function (a, b) {
+                    return a - b;
+                });
             } else {
                 lostCards.splice(idx, 1);
             }
@@ -915,7 +926,7 @@
             }
 
             resetProgress();
-            window.renderSettings();
+            window.renderSettings(true);
         };
 
         window.resetLostCards = function () {
@@ -930,7 +941,7 @@
             }
 
             resetProgress();
-            window.renderSettings();
+            window.renderSettings(true);
         };
 
         window.takePhoto = function () {
@@ -1160,10 +1171,14 @@
                 '<img class="prep-photo" src="' + currentPhoto.imageDataUrl + '" alt="Place for card ' + cardNumber + '">' +
                 '</div>' +
 
+                '<div class="actions" style="margin-top:14px;">' +
+                '<button class="btn green" onclick="confirmPrepStep()">Hidden! Next</button>' +
+                '</div>' +
+
+                (canShuffle ? '<p class="deck-hint" style="margin-top:18px;">Or pick a different place for this card:</p>' : '') +
                 '<div class="remaining-grid">' + choices + '</div>' +
 
                 '<div class="actions">' +
-                '<button class="btn green" onclick="confirmPrepStep()">Hidden! Next</button>' +
                 shuffleBtn +
                 '<button class="btn secondary" onclick="renderSettings()">Set up photos</button>' +
                 '</div>' +
